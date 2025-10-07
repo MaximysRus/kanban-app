@@ -1,0 +1,96 @@
+services:
+  database:
+    image: mysql:8.0
+    container_name: kanban-database
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: test-db
+      MYSQL_ROOT_PASSWORD: 123
+      MYSQL_PASSWORD: 123
+      MYSQL_SSL_MODE: "DISABLED"
+    volumes:
+      - kanban-mysql-data:/var/lib/mysql
+    networks:
+      - kanban-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: kanban-backend
+    restart: unless-stopped
+    working_dir: /var/www/html
+    volumes:
+      - ./backend:/var/www/html
+    networks:
+      - kanban-network
+    depends_on:
+      - database
+    environment:
+      - DB_HOST=database
+      - REDIS_HOST=redis
+      - DB_CONNECTION=mysql
+      - DB_PORT=3306
+      - DB_DATABASE=test-db
+      - DB_USERNAME=root
+      - DB_PASSWORD=123
+      - DB_SSL=false
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: kanban-frontend
+    restart: unless-stopped
+    networks:
+      - kanban-network
+
+  webserver:
+    image: nginx:alpine
+    container_name: kanban-webserver
+    restart: unless-stopped
+    ports:
+      - "90:80"
+      - "453:443"
+    volumes:
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d
+      # - ./docker/nginx/ssl:/etc/nginx/ssl
+    networks:
+      - kanban-network
+    depends_on:
+      - backend
+      - frontend
+
+  redis:
+    image: redis:alpine
+    container_name: kanban-redis
+    restart: unless-stopped
+    volumes:
+      - kanban-redis-data:/data
+    networks:
+      - kanban-network
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: kanban-phpmyadmin
+    restart: unless-stopped
+    ports:
+      - "9002:80"
+    environment:
+      PMA_HOST: database
+      PMA_PORT: 3306
+      MYSQL_ROOT_PASSWORD: 123
+    networks:
+      - kanban-network
+    depends_on:
+      - database
+
+volumes:
+  kanban-mysql-data:
+    driver: local
+  kanban-redis-data:
+    driver: local
+
+networks:
+  kanban-network:
+    driver: bridge
